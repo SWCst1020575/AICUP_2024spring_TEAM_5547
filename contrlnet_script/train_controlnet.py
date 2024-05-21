@@ -834,7 +834,7 @@ def main(args):
         )
     else:
         vae = AutoencoderKL.from_single_file(
-            args.pretrained_model_file, subfolder="vae", revision=args.revision, variant=args.variant
+            args.pretrained_model_file, subfolder="vae", revision=args.revision, variant=args.variant, use_safetensors = True
         )
     if args.pretrained_model_file is None:
         unet = UNet2DConditionModel.from_pretrained(
