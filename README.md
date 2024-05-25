@@ -1,5 +1,30 @@
 # AICUP_Image_Generating
 
+## Required model
+- [All required models]()
+- Please decompresses the zip file and puts them under this project.
+
+## Run main script
+- Please ensure the enviroment has been set up.
+- Please download the model above mentioned.
+- Ensure project directory follow the format below.
+```
+|-- main.py
+|-- beautifulrealityv3_full.safetensors
+|-- road_controlnet
+|   |-- [model files]
+|-- river_controlnet
+|   |-- [model files]
+|-- training
+|   |-- label_img
+|   |   |-- [image files]
+|   |-- img
+|   |   |-- [image files]
+|-- testing
+|   |-- label_img
+|   |   |-- [image files]
+```
+
 ## Run training script
 ```sh
 accelerate launch ./contrlnet_script/train_controlnet.py \
@@ -18,25 +43,8 @@ accelerate launch ./contrlnet_script/train_controlnet.py \
  --enable_xformers_memory_efficient_attention \
  --report_to="wandb" \
  --set_grads_to_none \
- --pretrained_model_file="../beautifulrealityv3_full.safetensors" \
- --resume_from_checkpoint="output_sd15/checkpoint-10800"
-```
-```sh
-accelerate launch ./text_to_image_script/train_text_to_image_lora.py \
-  --pretrained_model_name_or_path="runwayml/stable-diffusion-v1-5" \
-  --resolution=512 --random_flip \
-  --train_data_dir="training/lora" \
-  --train_batch_size=2 \
-  --num_train_epochs=100 \
-  --checkpointing_steps=4320 \
-  --learning_rate=1e-04 --lr_warmup_steps=0 \
-  --output_dir="sd15_lora" \
-  --use_8bit_adam --enable_xformers_memory_efficient_attention \
-  --report_to="wandb" \
-  --snr_gamma=5.0 \
-  --rank=32 \
-  --resume_from_checkpoint="sd15-river-lora/checkpoint-4320" \
-  --pretrained_model_file="../beautifulrealityv3_full.safetensors" \
+ --pretrained_model_file="beautifulrealityv3_full.safetensors" \
+ --resume_from_checkpoint="checkpoint-19200"
 ```
 
 
@@ -61,7 +69,6 @@ accelerate launch ./text_to_image_script/train_text_to_image_lora.py \
 
 ## Reference scripts and technique
 - [diffusers controlnet training script](https://github.com/huggingface/diffusers/tree/main/examples/controlnet)
-- [diffusers lora training script](https://github.com/huggingface/diffusers/tree/main/examples/text_to_image)
 - [ControlNet](https://github.com/lllyasviel/ControlNet)
 
 ## Reference Pretrained Model
