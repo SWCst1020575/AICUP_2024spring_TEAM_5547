@@ -1,6 +1,4 @@
-import argparse
 import os
-import numpy as np
 from tqdm import tqdm
 from PIL import Image
 import torch
@@ -10,137 +8,112 @@ from diffusers import (
     StableDiffusionControlNetPipeline,
     UniPCMultistepScheduler,
 )
-import parse_args
+from parser_args import parse_args
+from image_processing import image_preprocessing, get_image_construct_list
+from typing import Literal
+from diffusers import logging
+
+logging.set_verbosity_error()
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-
-def check_label_image_rotate(img: Image.Image) -> bool:
-    img_mat = np.array(img)
-    for i in range(img_mat.shape[0]):
-        if (img_mat[i, :] > 128).sum() > 0:
-            top_of_road = i
-            break
-    for i in range(img_mat.shape[0] - 1, -1, -1):
-        if (img_mat[i, :] > 128).sum() > 0:
-            bottom_of_road = i
-            break
-    if (img_mat[top_of_road, :, 0] > 128).sum() > (
-        img_mat[bottom_of_road, :, 0] > 128
-    ).sum():
-        return True
-    return False
+IMAGE_TYPE = Literal["road", "river"]
 
 
-def get_image_pipeline_type(
-    args, img_info: (str, Image.Image), training_image_list: list
-):
-    # According to the score measure formula,
-    # define each image in testing data should belong to which pipeline.
-    img = np.array(img_info[1])[:, :, 0]
-    b = img > 128
-    img_total = b.sum()
-    SCORE = args.river_score if "_RI_" in img_info[0] else args.road_score
-    score = 0
-    pos = 0
-    for i in range(len(training_image_list)):
-        a = training_image_list[i][1] > 128
-        score_current = (np.logical_and(a, b)).sum() / img_total
-        if score_current > score:
-            score = score_current
-            pos = i
-    if score > SCORE:
-        img_target = training_image_list[pos][2]
-        construct_type = "img2img"
-    else:
-        img_target = img_info[1]
-        construct_type = "controlnet"
-    return (construct_type, img_info[0], img_target)
-
-
-def get_borden_line_label_image(img: Image.Image) -> np.ndarray:
-    img = img.resize((107, 60)).resize((428, 240), Image.BILINEAR)
-    img = (np.array(img)[:, :, 0] > 0).astype(np.uint8) * 255
-    return img
-
-
-def image_preprocessing(args):
-    # Since to searching performance, we seperate the data to river and road.
-    training_dataset_path = args.training_dataset
-    testing_dataset_path = args.testing_dataset
-    training_label_files = os.listdir(f"{training_dataset_path}/label_img")
-    test_label_files = os.listdir(f"{testing_dataset_path}/label_img")
-    training_image_list_river = []
-    training_image_list_road = []
-    testing_image_list_river = []
-    testing_image_list_road = []
-    for file in tqdm(training_label_files):
-        # Make width of line larger
-
-        label_img_pil = Image.open(f"{training_dataset_path}/label_img/{file}")
-        label_img = get_borden_line_label_image(label_img_pil)
-        label_img_rotate = get_borden_line_label_image(label_img_pil.rotate(180))
-
-        name_of_file = file.split(".")[0]
-        img = Image.open(f"{training_dataset_path}/img/{name_of_file}.jpg")
-        if "_RI_" in name_of_file:
-            training_image_list_river.append(
-                [
-                    f"{name_of_file}_rotate",
-                    label_img_rotate,
-                    img.rotate(180),
-                ]
-            )
-            training_image_list_river.append((name_of_file, label_img, img))
-        elif "_RO_" in name_of_file:
-            training_image_list_road.append(
-                [
-                    f"{name_of_file}_rotate",
-                    label_img_rotate,
-                    img.rotate(180),
-                ]
-            )
-            training_image_list_road.append((name_of_file, label_img, img))
-    for file in tqdm(test_label_files):
-        label_img = Image.open(f"{testing_dataset_path}/label_img/{file}")
-        name_of_file = file.split(".")[0]
-        if "_RO_" in file:
-            if check_label_image_rotate(label_img):
-                testing_image_list_road.append(
-                    (f"{name_of_file}_rotate", label_img.rotate(180))
-                )
-            else:
-                testing_image_list_road.append((name_of_file, label_img))
-        elif "_RI_" in file:
-            testing_image_list_river.append((name_of_file, label_img))
-    return (
-        training_image_list_river,
-        training_image_list_road,
-        testing_image_list_river,
-        testing_image_list_road,
+def get_controlnet_model(args, img_type: IMAGE_TYPE):
+    controlnet_path = (
+        args.road_controlnet_path if img_type == "road" else args.river_controlnet_path
     )
+    controlnet = ControlNetModel.from_pretrained(
+        controlnet_path, safety_checker=None, torch_dtype=torch.float16
+    ).to(device)
+
+    pipe_controlnet = StableDiffusionControlNetPipeline.from_single_file(
+        args.base_stable_diffusion_file,
+        controlnet=controlnet,
+        torch_dtype=torch.float16,
+        safety_checker=None,
+        use_safetensors=True,
+    )
+    pipe_controlnet.scheduler = UniPCMultistepScheduler.from_config(
+        pipe_controlnet.scheduler.config
+    )
+    pipe_controlnet.safety_checker = None
+
+    pipe_controlnet.enable_xformers_memory_efficient_attention()
+
+    pipe_controlnet.set_progress_bar_config(disable=True)
+    pipe_controlnet = pipe_controlnet.to(device)
+
+    return pipe_controlnet
 
 
-def get_image_construct_list(args, training_image_list, testing_image_list):
-    # Return a list of images and their info for testing data.
-    image_construct_list = []
+def get_img2img_model(args):
+    pipe_img2img = StableDiffusionImg2ImgPipeline.from_single_file(
+        args.base_stable_diffusion_file,
+        torch_dtype=torch.float16,
+        use_safetensors=True,
+    )
+    pipe_img2img.scheduler = UniPCMultistepScheduler.from_config(
+        pipe_img2img.scheduler.config
+    )
+    pipe_img2img.enable_xformers_memory_efficient_attention()
 
-    for img_info in tqdm(testing_image_list):
-        image_construct_list.append(
-            get_image_pipeline_type(
-                args=args, img_info=img_info, training_image_list=training_image_list
-            )
-        )
-    img2img_count = 0
-    for info in image_construct_list:
-        if info[0] == "img2img":
-            img2img_count += 1
-    if args.debug:
-        print("Pipeline result:")
-        print(
-            f"img2img: {img2img_count}, controlNet: {len(image_construct_list) - img2img_count}\n"
-        )
-    return image_construct_list
+    pipe_img2img.set_progress_bar_config(disable=True)
+    pipe_img2img = pipe_img2img.to(device)
+    return pipe_img2img
+
+def controlnet_generate(
+    origin_img: Image.Image, img_type: IMAGE_TYPE, pipe
+) -> Image.Image:
+    generator = torch.manual_seed(0)
+    prompt = (
+        "river with muddy and light earth color water, aerial view, field, lush shore, gress, masterpiece, best quality, high resolution"
+        if img_type == "river"
+        else "road with lush grove, masterpiece, best quality, high resolution"
+    )
+    negative_prompt = (
+        "bridge, stone, sand, tall trees, sandbank, worst quality, jpeg artifacts, mutation, duplicate"
+        if img_type == "river"
+        else "bridge, sand, tall trees, sandbank, worst quality, jpeg artifacts, normal quality, low quality, mutation, duplicate, car, flower"
+    )
+    images = pipe(
+        prompt=prompt,
+        negative_prompt=negative_prompt,
+        image=origin_img,
+        generator=generator,
+        num_inference_steps=30,
+        strength=0.5,
+        guidance_scale=8.0,
+        controlnet_conditioning_scale=1.8,
+        height=240,
+        width=428,
+    ).images
+    return images[0]
+
+
+def img2img_generate(
+    origin_img: Image.Image, img_type: IMAGE_TYPE, pipe
+) -> Image.Image:
+    prompt = img_type
+    prompt = (
+        "river with muddy and light earth color water, aerial view, field, lush shore, gress"
+        if img_type == "river"
+        else "road with lush grove"
+    )
+    generator = torch.manual_seed(0)
+    negative_prompt = "worst quality, jpeg artifacts, mutation, duplicate"
+    images = pipe(
+        prompt=prompt,
+        negative_prompt=negative_prompt,
+        image=origin_img,
+        generator=generator,
+        strength=0.1,
+        guidance_scale=5.0,
+        height=240,
+        width=428,
+    ).images
+    return images[0]
 
 
 def main(args):
@@ -167,10 +140,56 @@ def main(args):
         training_image_list=training_image_list_road,
         testing_image_list=testing_image_list_road,
     )
+    # if args.debug:
+    #     return
+    
+    print("-" * 50)
+    print(f"Device: {device}")
+    print("Model loading...")
+    controlnet = get_controlnet_model(args=args, img_type="river")
+    img2img = get_img2img_model(args=args)
+    print("Loading completely.")
+    print("-" * 50)
+    print("River image generating...")
+    if not os.path.exists(args.output_dir):
+        os.makedirs(args.output_dir)
+
+    for image_info in tqdm(river_image_construct_list):
+        if image_info[0] == "img2img":
+            img = img2img_generate(
+                origin_img=image_info[2], img_type="river", pipe=img2img
+            )
+        elif image_info[0] == "controlnet":
+            img = controlnet_generate(
+                origin_img=image_info[2], img_type="river", pipe=controlnet
+            )
+        file_name = image_info[1]
+        if "_rotate" in file_name:
+            img = img.rotate(180)
+            file_name = file_name[:-7]
+        img.save(f"{args.output_dir}/{file_name}.jpg")
+    print("Model loading...")
+    controlnet = get_controlnet_model(args=args, img_type="road")
+    print("Loading completely.")
+    print("-" * 50)
+    print("Road image generating...")
+    for image_info in tqdm(road_image_construct_list):
+        if image_info[0] == "img2img":
+            img = img2img_generate(
+                origin_img=image_info[2], img_type="road", pipe=img2img
+            )
+        elif image_info[0] == "controlnet":
+            img = controlnet_generate(
+                origin_img=image_info[2], img_type="road", pipe=road_controlnet
+            )
+        file_name = image_info[1]
+        if "_rotate" in file_name:
+            img = img.rotate(180)
+            file_name = file_name[:-7]
+        img.save(f"{args.output_dir}/{file_name}.jpg")
+    print("Generate completely.")
 
 
 if __name__ == "__main__":
     args = parse_args()
     main(args)
-
-    # ControlNetModel.from_pretrained(args.road_controlnet_path, torch_dtype=torch.float16)
