@@ -180,7 +180,7 @@ def main(args):
             )
         elif image_info[0] == "controlnet":
             img = controlnet_generate(
-                origin_img=image_info[2], img_type="road", pipe=road_controlnet
+                origin_img=image_info[2], img_type="road", pipe=controlnet
             )
         file_name = image_info[1]
         if "_rotate" in file_name:
