@@ -63,10 +63,12 @@ def get_img2img_model(args):
     pipe_img2img = pipe_img2img.to(device)
     return pipe_img2img
 
+
 def controlnet_generate(
     origin_img: Image.Image, img_type: IMAGE_TYPE, pipe
 ) -> Image.Image:
-    generator = torch.manual_seed(0)
+    # generator = torch.manual_seed(0)
+    generator = torch.manual_seed(56) if img_type == "river" else torch.manual_seed(17)
     prompt = (
         "river with muddy and light earth color water, aerial view, field, lush shore, gress, masterpiece, best quality, high resolution"
         if img_type == "river"
@@ -84,12 +86,12 @@ def controlnet_generate(
         generator=generator,
         num_inference_steps=30,
         strength=0.5,
-        guidance_scale=8.0,
-        controlnet_conditioning_scale=1.8,
+        guidance_scale=4.0,
+        controlnet_conditioning_scale=1.0,
         height=240,
         width=428,
     ).images
-    return images[0]
+    return images[0].resize((428, 240))
 
 
 def img2img_generate(
@@ -109,11 +111,11 @@ def img2img_generate(
         image=origin_img,
         generator=generator,
         strength=0.1,
-        guidance_scale=5.0,
+        guidance_scale=4.0,
         height=240,
         width=428,
     ).images
-    return images[0]
+    return images[0].resize((428, 240))
 
 
 def main(args):
@@ -142,7 +144,7 @@ def main(args):
     )
     # if args.debug:
     #     return
-    
+
     print("-" * 50)
     print(f"Device: {device}")
     print("Model loading...")

@@ -48,7 +48,7 @@ def get_image_pipeline_type(
 
 
 def get_borden_line_label_image(img: Image.Image) -> np.ndarray:
-    img = img.resize((107, 60)).resize((428, 240), Image.BILINEAR)
+    img = img.resize((143, 80)).resize((428, 240), Image.BILINEAR)
     img = (np.array(img)[:, :, 0] > 0).astype(np.uint8) * 255
     return img
 
@@ -73,13 +73,6 @@ def image_preprocessing(args):
         name_of_file = file.split(".")[0]
         img = Image.open(f"{training_dataset_path}/img/{name_of_file}.jpg")
         if "_RI_" in name_of_file:
-            training_image_list_river.append(
-                [
-                    f"{name_of_file}_rotate",
-                    label_img_rotate,
-                    img.rotate(180),
-                ]
-            )
             training_image_list_river.append((name_of_file, label_img, img))
         elif "_RO_" in name_of_file:
             training_image_list_road.append(
