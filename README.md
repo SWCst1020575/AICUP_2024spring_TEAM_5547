@@ -1,10 +1,19 @@
 # AICUP_Image_Generating
 
 ## Required model
-- [All required models]()
+- [All required models](https://drive.google.com/file/d/1zyBKI_85ka__xBK7qdURfYC3nkcM7kGm/view)
 - Please decompresses the zip file and puts them under this project.
 
+```sh
+pip install pillow numpy tqdm torch
+pip install diffusers["torch"] transformers xformers
+```
+
 ## Run main script
+- If you follow below directory stucture, you can run main.py directly.
+```sh
+python main.py
+```
 - Please ensure the enviroment has been set up.
 - Please download the model above mentioned.
 - Ensure project directory follow the format below.
