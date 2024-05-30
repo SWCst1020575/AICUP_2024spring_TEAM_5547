@@ -8,7 +8,7 @@ from diffusers import (
     StableDiffusionControlNetPipeline,
     UniPCMultistepScheduler,
 )
-from parser_args import parse_args
+from parse_args import parse_args
 from image_processing import image_preprocessing, get_image_construct_list
 from typing import Literal
 from diffusers import logging
