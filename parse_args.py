@@ -1,3 +1,6 @@
+import argparse
+
+
 def parse_args():
     # Parse argument.
     # All arguments have default value,
@@ -26,13 +29,13 @@ def parse_args():
     parser.add_argument(
         "--road_score",
         type=float,
-        default=0.6,
+        default=0.57,
         help="The score to identify which pipeline the label image should get in.",
     )
     parser.add_argument(
         "--river_score",
         type=float,
-        default=0.57,
+        default=0.58,
         help="The score to identify which pipeline the label image should get in.",
     )
     parser.add_argument(
