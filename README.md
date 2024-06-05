@@ -5,9 +5,9 @@
 - 請下載後解壓縮到此專案底下
 
 ```sh
-pip install pillow numpy tqdm torch
+pip install pillow numpy tqdm torch==2.3.0 torchvision==0.18.0
 pip install diffusers["torch"] transformers xformers
-pip install bitsandbytes
+pip install bitsandbytes datasets
 ```
 
 ## Run main script
@@ -47,6 +47,10 @@ python main.py \
 
 ## Run training script
 - 上述提供的模型是river和road分開，運行以下腳本只會生成一個合併的版本
+- 首先是生成metadata，因為有使用blip model生成prompt所以比較慢
+```sh
+python metadata.ipynb
+```
 ```sh
 accelerate launch ./controlnet_script/train_controlnet.py \
  --pretrained_model_name_or_path="runwayml/stable-diffusion-v1-5" \
