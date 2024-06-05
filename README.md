@@ -1,22 +1,33 @@
 # AICUP_Image_Generating
 
-## Required model
+## Requirement
 - [All required models](https://drive.google.com/file/d/1zyBKI_85ka__xBK7qdURfYC3nkcM7kGm/view)
-- Please decompresses the zip file and puts them under this project.
+- 請下載後解壓縮到此專案底下
 
 ```sh
 pip install pillow numpy tqdm torch
 pip install diffusers["torch"] transformers xformers
+pip install bitsandbytes
 ```
 
 ## Run main script
-- If you follow below directory stucture, you can run main.py directly.
+
 ```sh
 python main.py
 ```
-- Please ensure the enviroment has been set up.
-- Please download the model above mentioned.
-- Ensure project directory follow the format below.
+or
+```sh
+python main.py \
+ --road_controlnet_path="road_controlnet" \
+ --river_controlnet_path="river_controlnet" \
+ --training_dataset="training" \
+ --testing_dataset="testing" \
+ --base_stable_diffusion_file="beautifulrealityv3_full.safetensors" \
+ --output_dir="output"
+```
+- 如果有把dataset保持下述資料夾結構，則可直接運行不用傳參數
+- 請確保上述套件安裝完成
+- 請確保上述模型下載到此資料夾
 ```
 |-- main.py
 |-- beautifulrealityv3_full.safetensors
@@ -35,25 +46,24 @@ python main.py
 ```
 
 ## Run training script
+- 上述提供的模型是river和road分開，運行以下腳本只會生成一個合併的版本
 ```sh
-accelerate launch ./contrlnet_script/train_controlnet.py \
+accelerate launch ./controlnet_script/train_controlnet.py \
  --pretrained_model_name_or_path="runwayml/stable-diffusion-v1-5" \
  --controlnet_model_name_or_path="lllyasviel/sd-controlnet-mlsd" \
- --output_dir="output_sd15_2" \
- --train_data_dir="training/river" \
+ --output_dir="output_model" \
+ --train_data_dir="training" \
  --resolution=512 \
  --checkpointing_steps=1200 \
- --num_train_epochs=20 \
+ --num_train_epochs=10 \
  --train_batch_size=1 \
  --learning_rate=1e-5 \
  --gradient_accumulation_steps=4 \
  --gradient_checkpointing \
  --use_8bit_adam \
  --enable_xformers_memory_efficient_attention \
- --report_to="wandb" \
  --set_grads_to_none \
- --pretrained_model_file="beautifulrealityv3_full.safetensors" \
- --resume_from_checkpoint="checkpoint-19200"
+ --pretrained_model_file="beautifulrealityv3_full.safetensors"
 ```
 
 
@@ -83,14 +93,9 @@ accelerate launch ./contrlnet_script/train_controlnet.py \
 ## Reference Pretrained Model
 ### Base
 - [runwayml/stable-diffusion-v1-5](https://huggingface.co/runwayml/stable-diffusion-v1-5)
-- ~~[stabilityai/stable-diffusion-2-1](https://huggingface.co/stabilityai/stable-diffusion-2-1)~~
-
-    Not use finally
 - [BeautifulRealityV3 (base on sd15)](https://civitai.com/models/389456?modelVersionId=434546)
     
     Improve output quality
 ### ControlNet
 - [lllyasviel/sd-controlnet-mlsd](https://huggingface.co/lllyasviel/sd-controlnet-mlsd)
-- ~~[thibaud/controlnet-sd21-scribble-diffusers](https://huggingface.co/thibaud/controlnet-sd21-scribble-diffusers)~~
-    
-    Not use finally.
+
