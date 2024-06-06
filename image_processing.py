@@ -93,7 +93,7 @@ def image_preprocessing(args):
                 )
             else:
                 testing_image_list_road.append((name_of_file, label_img))
-        elif "_RI_" in file:
+        elif "_RI_" in file and "_flip" not in file:
             testing_image_list_river.append((name_of_file, label_img))
     return (
         training_image_list_river,
